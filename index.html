@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Viewer</title>
+    <title>Data visualization</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <style>
         :root {
@@ -153,6 +153,15 @@
             max-height: 0;
             overflow: hidden;
         }
+        /* Single scroll: only the collapsible scrolls, inner content does not */
+        .collapsible-content .diff-content {
+            max-height: none;
+            overflow: visible;
+        }
+        .collapsible-content .edit-content.expanded {
+            max-height: none;
+            overflow: visible;
+        }
 
         .edit-item {
             background: var(--bg-color);
@@ -261,9 +270,23 @@
         }
 
         .diff-content {
-            max-height: 600px;
-            overflow: auto;
+            max-height: none;
+            overflow: visible;
             background: #1e1e1e;
+        }
+
+        .sample-block {
+            margin-bottom: 2em;
+            scroll-margin-top: 1em;
+        }
+
+        .sample-caption {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 1em;
+            padding-bottom: 0.5em;
+            border-bottom: 2px solid var(--border-color);
         }
 
         .code-block {
@@ -313,16 +336,50 @@
             margin-top: 8px;
             margin-bottom: 6px;
         }
-        /* Metrics & Statistics: each group is one horizontal row (items left-to-right) */
-        .metadata-info.metrics-stat-row {
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
-            grid-template-columns: unset;
+        /* Metrics & Statistics: table layout, one row per metric/stat */
+        .metrics-stat-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
         }
-        .metadata-info.metrics-stat-row .metadata-item {
-            min-width: 140px;
-            margin-right: 16px;
+        .metrics-stat-table th,
+        .metrics-stat-table td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .metrics-stat-table th {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            width: 55%;
+        }
+        .metrics-stat-table td {
+            color: var(--text-color);
+            font-weight: 500;
+        }
+        .metrics-stat-table tr:last-child td {
+            border-bottom: none;
+        }
+        .metrics-stat-table-wrapper {
+            margin-bottom: 16px;
+            background: var(--bg-color);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .metrics-stat-table-wrapper:last-child {
+            margin-bottom: 0;
+        }
+        #metricsInfo .metrics-stat-table-wrapper,
+        #statisticsInfo .metrics-stat-table-wrapper {
+            margin-bottom: 16px;
+        }
+        #metricsInfo .metrics-stat-table-wrapper:last-child,
+        #statisticsInfo .metrics-stat-table-wrapper:last-child {
+            margin-bottom: 0;
         }
 
         .metadata-item {
@@ -509,25 +566,25 @@
     <div class="container">
         <div class="header">
             <div>
-                <h1>📊 CSV Data Viewer</h1>
+                <h1>📊 Data visualization</h1>
                 <div class="type-selector card" style="margin-bottom: 16px; padding: 16px;">
                     <div class="metadata-label" style="margin-bottom: 8px;">CSV type</div>
                     <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
                         <label class="type-option">
-                            <input type="radio" name="csvType" value="comparisons" checked>
-                            <span>Comparisons</span>
-                        </label>
-                        <label class="type-option">
-                            <input type="radio" name="csvType" value="gradings">
-                            <span>Gradings</span>
+                            <input type="radio" name="csvType" value="initial_dataset" checked>
+                            <span>Initial dataset</span>
                         </label>
                         <label class="type-option">
                             <input type="radio" name="csvType" value="model_predictions">
                             <span>Model predictions</span>
                         </label>
                         <label class="type-option">
-                            <input type="radio" name="csvType" value="initial_dataset">
-                            <span>Initial dataset</span>
+                            <input type="radio" name="csvType" value="gradings">
+                            <span>Gradings</span>
+                        </label>
+                        <label class="type-option">
+                            <input type="radio" name="csvType" value="comparisons">
+                            <span>Comparisons</span>
                         </label>
                         <label class="type-option">
                             <input type="radio" name="csvType" value="auto">
@@ -537,6 +594,29 @@
                 </div>
                 <div class="file-input-container">
                     <input type="file" id="fileInput" accept=".csv" class="file-input">
+                </div>
+                <div class="history-view-option" style="display: flex; align-items: center; gap: 8px;">
+                    <label for="historyViewSelect" style="font-size: 14px; color: var(--text-color);">History:</label>
+                    <select id="historyViewSelect" class="file-input" style="width: auto; padding: 6px 10px;">
+                        <option value="all">All edits</option>
+                        <option value="last5">Last 5 edits</option>
+                    </select>
+                </div>
+                <div class="filter-options" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+                    <div class="language-filter" style="display: flex; align-items: center; gap: 6px;">
+                        <label style="font-size: 14px; color: var(--text-color);">Language:</label>
+                        <div id="languageFilterList" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+                        <span style="font-size: 12px; color: #7f8c8d;">(none = all)</span>
+                    </div>
+                    <div class="score-filter comparisons-only" id="scoreFilterWrap" style="display: none; align-items: center; gap: 6px;">
+                        <label for="scoreFilterSelect" style="font-size: 14px; color: var(--text-color);">Comparison score:</label>
+                        <select id="scoreFilterSelect" class="file-input" style="width: auto; padding: 6px 10px;">
+                            <option value="all">All</option>
+                            <option value="model1">Model 1 wins</option>
+                            <option value="tie">Tie</option>
+                            <option value="model2">Model 2 wins</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             <div class="navigation">
@@ -548,108 +628,7 @@
 
         <div class="loading" id="loading">Please select a CSV file to begin viewing</div>
 
-        <div id="mainContent" style="display: none;">
-            <!-- Metadata Card -->
-            <div class="card" id="metadataCard">
-                <div class="card-header">
-                    <h2 class="card-title">📊 Metadata</h2>
-                </div>
-                <div class="metadata-info" id="metadataInfo"></div>
-            </div>
-
-            <!-- Scores Display (after metadata, subtle) -->
-            <div class="card" id="scoresCard" style="display: none;">
-                <div class="card-header">
-                    <h2 class="card-title">Score</h2>
-                </div>
-                <div class="score-display" id="scoresDisplay"></div>
-            </div>
-
-            <!-- Metrics (gradings only) -->
-            <div class="card" id="metricsCard" style="display: none;">
-                <div class="card-header">
-                    <h2 class="card-title">📐 Metrics</h2>
-                </div>
-                <div class="metadata-info" id="metricsInfo"></div>
-            </div>
-
-            <!-- Statistics (gradings only) -->
-            <div class="card" id="statisticsCard" style="display: none;">
-                <div class="card-header">
-                    <h2 class="card-title">📈 Statistics</h2>
-                </div>
-                <div class="metadata-info" id="statisticsInfo"></div>
-            </div>
-
-            <!-- Analysis Card -->
-            <div class="card" id="analysisCard" style="display: none;">
-                <div class="card-header">
-                    <h2 class="card-title">🔍 Analysis</h2>
-                    <button class="collapse-btn" onclick="toggleCollapse('analysisContent')">Show/Hide</button>
-                </div>
-                <div class="collapsible-content" id="analysisContent">
-                    <div id="analysisDisplay" style="padding: 20px; background: var(--bg-color); border-radius: 8px; line-height: 1.8; font-size: 15px;"></div>
-                </div>
-            </div>
-
-            <!-- History/Events Card -->
-            <div class="card" id="historyCard" style="display: none;">
-                <div class="card-header">
-                    <h2 class="card-title">📜 Edit History</h2>
-                    <button class="collapse-btn" onclick="toggleCollapse('historyContent')">Show/Hide</button>
-                </div>
-                <div class="collapsible-content collapsed" id="historyContent">
-                    <div id="historyDisplay"></div>
-                </div>
-            </div>
-
-            <!-- Input & Output (one collapsible block for comparison) -->
-            <div class="card" id="inputOutputCard" style="display: none;">
-                <div class="card-header">
-                    <h2 class="card-title">📝 Input & Output</h2>
-                    <button class="collapse-btn" onclick="toggleCollapse('inputOutputContent')">Show/Hide</button>
-                </div>
-                <div class="collapsible-content collapsed" id="inputOutputContent">
-                    <div class="diff-container" id="inputOutputContainer">
-                        <div class="diff-panel">
-                            <div class="diff-header">Input</div>
-                            <div class="diff-content">
-                                <div class="code-block" id="inputDisplay"></div>
-                            </div>
-                        </div>
-                        <div class="diff-panel">
-                            <div class="diff-header" id="inputOutputPanel2Header">Output</div>
-                            <div class="diff-content">
-                                <div class="code-block" id="outputDisplay"></div>
-                            </div>
-                        </div>
-                        <div class="diff-panel" id="inputOutputPanel3">
-                            <div class="diff-header" id="inputOutputPanel3Header">Ground Truth</div>
-                            <div class="diff-content">
-                                <div class="code-block" id="gtDisplay"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Diff Comparisons -->
-            <div class="card" id="diffsCard" style="display: none;">
-                <div class="card-header">
-                    <h2 class="card-title">🔍 Diff Comparisons</h2>
-                </div>
-                <div class="diff-container">
-                    <div class="diff-panel">
-                        <div class="diff-header">Input → Output</div>
-                        <div class="diff-content" id="diffInputOutput"></div>
-                    </div>
-                    <div class="diff-panel">
-                        <div class="diff-header">Input → Ground Truth</div>
-                        <div class="diff-content" id="diffInputGT"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div id="samplesList" style="display: none;"></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
@@ -659,6 +638,13 @@
         let data = [];
         let currentIndex = 0;
         let headers = [];
+        let renderedCount = 0;
+        let historyViewMode = 'all';
+        let filteredIndices = [];
+        let selectedLanguages = [];
+        let selectedScoreFilter = 'all';
+        const BATCH_SIZE = 80;
+        const INITIAL_BATCH = 80;
 
         // Column mapping per CSV type (logical name -> actual column name)
         const CSV_TYPE_CONFIG = {
@@ -755,9 +741,22 @@
                                 parseCSV(event.target.result);
                                 
                                 document.getElementById('loading').style.display = 'none';
-                                document.getElementById('mainContent').style.display = 'block';
-                                
-                                updateDisplay();
+                                filteredIndices = computeFilteredIndices();
+                                buildLanguageFilterUI();
+                                var t = getSelectedCsvType() === 'auto' ? detectCsvType() : getSelectedCsvType();
+                                document.getElementById('scoreFilterWrap').style.display = t === 'comparisons' ? 'flex' : 'none';
+                                const list = document.getElementById('samplesList');
+                                list.innerHTML = '';
+                                list.style.display = 'block';
+                                renderedCount = 0;
+                                currentIndex = 0;
+                                renderBatch(0, Math.min(INITIAL_BATCH, filteredIndices.length));
+                                updateCounterAndButtons();
+                                window.removeEventListener('scroll', loadMoreOnScroll);
+                                if (renderedCount < filteredIndices.length) {
+                                    window.addEventListener('scroll', loadMoreOnScroll, { passive: true });
+                                }
+                                updateScrollCounterObserver();
                                 let msg = 'File loaded successfully! ' + data.length + ' items found.';
                                 if (getSelectedCsvType() === 'auto') {
                                     msg += ' Detected type: ' + detectCsvType() + '.';
@@ -781,14 +780,92 @@
             }
         });
 
-        // When user changes CSV type, refresh the display if data is already loaded
+        function resetCollapsiblesToInitial() {
+            var ids = ['analysisContent', 'historyContent', 'inputOutputContent', 'inputOutput2Content', 'inputGroundTruthContent'];
+            var addCollapsed = [false, true, true, true, true];
+            ids.forEach(function(id, i) {
+                var el = document.getElementById(id);
+                if (el) { if (addCollapsed[i]) el.classList.add('collapsed'); else el.classList.remove('collapsed'); }
+            });
+        }
+
+        // When user changes CSV type: clear file, reset data, reset collapsibles, reset language/score filters
         document.querySelectorAll('input[name="csvType"]').forEach(function(radio) {
             radio.addEventListener('change', function() {
-                if (data.length > 0) {
-                    updateDisplay();
-                    showToast('View updated for ' + (getSelectedCsvType() === 'auto' ? 'auto-detected type' : getSelectedCsvType()) + '.');
-                }
+                document.getElementById('fileInput').value = '';
+                data = [];
+                headers = [];
+                currentIndex = 0;
+                filteredIndices = [];
+                selectedLanguages = [];
+                selectedScoreFilter = 'all';
+                document.getElementById('scoreFilterSelect').value = 'all';
+                document.getElementById('languageFilterList').innerHTML = '';
+                document.getElementById('samplesList').style.display = 'none';
+                document.getElementById('samplesList').innerHTML = '';
+                renderedCount = 0;
+                window.removeEventListener('scroll', loadMoreOnScroll);
+                document.getElementById('loading').textContent = 'Please select a CSV file to begin viewing';
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('prevBtn').disabled = true;
+                document.getElementById('nextBtn').disabled = true;
+                document.getElementById('counter').textContent = '0 / 0';
+                document.getElementById('scoreFilterWrap').style.display = 'none';
+                resetCollapsiblesToInitial();
             });
+        });
+
+        document.getElementById('historyViewSelect').addEventListener('change', function() {
+            historyViewMode = this.value;
+            var list = document.getElementById('samplesList');
+            if (list.style.display !== 'block' || data.length === 0) return;
+            var to = renderedCount;
+            list.innerHTML = '';
+            renderedCount = 0;
+            renderBatch(0, to);
+            updateScrollCounterObserver();
+        });
+
+        function buildLanguageFilterUI() {
+            var container = document.getElementById('languageFilterList');
+            if (!container) return;
+            container.innerHTML = '';
+            var langs = getUniqueLanguages();
+            langs.forEach(function(lang) {
+                var label = document.createElement('label');
+                label.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; cursor: pointer; font-size: 13px;';
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = lang;
+                cb.checked = selectedLanguages.indexOf(lang) !== -1;
+                cb.addEventListener('change', function() {
+                    if (this.checked) selectedLanguages.push(lang);
+                    else selectedLanguages = selectedLanguages.filter(function(l) { return l !== lang; });
+                    applyFiltersAndRefresh();
+                });
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(lang));
+                container.appendChild(label);
+            });
+        }
+
+        function applyFiltersAndRefresh() {
+            var list = document.getElementById('samplesList');
+            if (list.style.display !== 'block' || data.length === 0) return;
+            filteredIndices = computeFilteredIndices();
+            list.innerHTML = '';
+            renderedCount = 0;
+            currentIndex = 0;
+            renderBatch(0, Math.min(INITIAL_BATCH, filteredIndices.length));
+            updateCounterAndButtons();
+            updateScrollCounterObserver();
+            window.removeEventListener('scroll', loadMoreOnScroll);
+            if (renderedCount < filteredIndices.length) window.addEventListener('scroll', loadMoreOnScroll, { passive: true });
+        }
+
+        document.getElementById('scoreFilterSelect').addEventListener('change', function() {
+            selectedScoreFilter = this.value;
+            applyFiltersAndRefresh();
         });
 
         function parseCSV(csvText) {
@@ -868,11 +945,15 @@
         }
 
         function navigate(direction) {
+            const total = filteredIndices.length;
+            if (total === 0) return;
             const newIndex = currentIndex + direction;
-            if (newIndex >= 0 && newIndex < data.length) {
-                currentIndex = newIndex;
-                updateDisplay();
-            }
+            if (newIndex < 0 || newIndex >= total) return;
+            currentIndex = newIndex;
+            while (renderedCount <= currentIndex && renderedCount < total) renderBatch(renderedCount, BATCH_SIZE);
+            updateCounterAndButtons();
+            const sec = document.getElementById('sample-' + currentIndex);
+            if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function updateDisplay() {
@@ -915,6 +996,11 @@
         }
 
         function displayScores(item) {
+            const type = getSelectedCsvType() === 'auto' ? detectCsvType() : getSelectedCsvType();
+            if (type === 'gradings' || type === 'comparisons') {
+                document.getElementById('scoresCard').style.display = 'none';
+                return;
+            }
             const scoreFields = [
                 'human_score',
                 'judge_score',
@@ -1007,14 +1093,23 @@
             }
 
             if (type === 'model_predictions' || type === 'gradings') {
+                const finishTypeKeys = type === 'gradings'
+                    ? ['input_metadata__finish_type', 'input__metadata__finish_type', 'meta__finish_type', 'finish_type']
+                    : ['input__metadata__finish_type', 'input_metadata__finish_type', 'meta__finish_type', 'finish_type'];
+                const getFinishType = () => {
+                    for (const key of finishTypeKeys) {
+                        const v = item[key];
+                        if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+                    }
+                    return null;
+                };
                 const fields = [
-                    { key: 'meta__language', label: 'Language' },
-                    { key: 'input__metadata__finish_type', label: 'Finish type' },
-                    { key: 'meta__inference_time', label: 'Inference time' }
+                    { value: item.meta__language, label: 'Language' },
+                    { value: getFinishType(), label: 'Finish type' },
+                    { value: item.meta__inference_time, label: 'Inference time' }
                 ];
                 let html = '';
-                fields.forEach(({ key, label }) => {
-                    const value = item[key];
+                fields.forEach(({ value, label }) => {
                     const displayValue = (value !== undefined && value !== null && String(value).trim() !== '')
                         ? escapeHtml(String(value).length > 150 ? String(value).substring(0, 150) + '...' : String(value))
                         : '—';
@@ -1089,27 +1184,27 @@
             const goldenStatKeys = allStatKeys.filter(k => /GOLDEN/i.test(k));
             const predictionStatKeys = allStatKeys.filter(k => /PREDICTION/i.test(k));
 
-            function renderMetricOrStatRow(keys, item, metricsPrefix, statsPrefix) {
-                let html = '';
+            function renderMetricOrStatTable(keys, item, metricsPrefix, statsPrefix) {
+                if (keys.length === 0) return '';
+                let rows = '';
                 keys.forEach(key => {
                     const value = item[key];
                     const displayValue = (value !== undefined && value !== null && String(value).trim() !== '')
                         ? escapeHtml(String(value)) : '—';
                     const label = formatMetricOrStatLabel(key, metricsPrefix, statsPrefix);
-                    html += `<div class="metadata-item"><span class="metadata-label">${escapeHtml(label)}</span><span class="metadata-value">${displayValue}</span></div>`;
+                    rows += `<tr><th>${escapeHtml(label)}</th><td>${displayValue}</td></tr>`;
                 });
-                return html;
+                return '<table class="metrics-stat-table"><tbody>' + rows + '</tbody></table>';
             }
 
             if (allMetricKeys.length > 0) {
                 document.getElementById('metricsCard').style.display = 'block';
                 let html = '';
                 if (mainMetricKeys.length > 0) {
-                    html += '<div class="metadata-info metrics-stat-row">' + renderMetricOrStatRow(mainMetricKeys, item, metricsPrefix, statsPrefix) + '</div>';
+                    html += '<div class="metrics-stat-table-wrapper">' + renderMetricOrStatTable(mainMetricKeys, item, metricsPrefix, statsPrefix) + '</div>';
                 }
                 if (firstHunkMetricKeys.length > 0) {
-                    html += '<div class="metrics-section-label">First hunk</div>';
-                    html += '<div class="metadata-info metrics-stat-row">' + renderMetricOrStatRow(firstHunkMetricKeys, item, metricsPrefix, statsPrefix) + '</div>';
+                    html += '<div class="metrics-stat-table-wrapper">' + renderMetricOrStatTable(firstHunkMetricKeys, item, metricsPrefix, statsPrefix) + '</div>';
                 }
                 document.getElementById('metricsInfo').innerHTML = html;
             } else {
@@ -1120,11 +1215,10 @@
                 document.getElementById('statisticsCard').style.display = 'block';
                 let html = '';
                 if (goldenStatKeys.length > 0) {
-                    html += '<div class="metadata-info metrics-stat-row">' + renderMetricOrStatRow(goldenStatKeys, item, metricsPrefix, statsPrefix) + '</div>';
+                    html += '<div class="metrics-stat-table-wrapper">' + renderMetricOrStatTable(goldenStatKeys, item, metricsPrefix, statsPrefix) + '</div>';
                 }
                 if (predictionStatKeys.length > 0) {
-                    html += '<div class="metrics-section-label">Prediction</div>';
-                    html += '<div class="metadata-info metrics-stat-row">' + renderMetricOrStatRow(predictionStatKeys, item, metricsPrefix, statsPrefix) + '</div>';
+                    html += '<div class="metrics-stat-table-wrapper">' + renderMetricOrStatTable(predictionStatKeys, item, metricsPrefix, statsPrefix) + '</div>';
                 }
                 document.getElementById('statisticsInfo').innerHTML = html;
             } else {
@@ -1132,21 +1226,41 @@
             }
         }
 
+        function getComparisonsWinnerText(item) {
+            const raw = String(item.score ?? item.comparison_score ?? '').trim();
+            const rawScore = parseFloat(raw, 10);
+            const model1 = (item.model_name_1 || '').trim() || 'Model 1';
+            const model2 = (item.model_name_2 || '').trim() || 'Model 2';
+            if (raw === '' || Number.isNaN(rawScore)) return null;
+            if (rawScore <= 0.25) return escapeHtml(model1);
+            if (rawScore >= 0.75) return escapeHtml(model2);
+            if (Math.abs(rawScore - 0.5) < 0.25) return 'Tie';
+            return null;
+        }
+
         function displayAnalysis(item) {
+            const type = getSelectedCsvType() === 'auto' ? detectCsvType() : getSelectedCsvType();
+            if (type === 'gradings') {
+                document.getElementById('analysisCard').style.display = 'none';
+                return;
+            }
             const analysis = item.analysis || item.judge_reasoning || '';
-            
-            if (analysis && analysis.trim()) {
+            let winnerLine = '';
+            if (type === 'comparisons') {
+                const winner = getComparisonsWinnerText(item);
+                if (winner !== null) winnerLine = '<p style="margin: 0 0 1em 0; font-weight: 600; font-size: 15px;">Winner: ' + winner + '</p>';
+            }
+            if (winnerLine || (analysis && analysis.trim())) {
                 document.getElementById('analysisCard').style.display = 'block';
-                
-                // Escape HTML first for security
+                if (!analysis || !analysis.trim()) {
+                    document.getElementById('analysisDisplay').innerHTML = winnerLine || '';
+                    return;
+                }
                 const escapedAnalysis = escapeHtml(analysis);
-                
-                // Format the analysis text - preserve line breaks and basic formatting
                 const formattedAnalysis = escapedAnalysis
                     .replace(/\n\n+/g, '</p><p style="margin: 15px 0;">')
                     .replace(/\n/g, '<br>');
-                
-                document.getElementById('analysisDisplay').innerHTML = '<p style="margin: 0;">' + formattedAnalysis + '</p>';
+                document.getElementById('analysisDisplay').innerHTML = winnerLine + '<p style="margin: 0;">' + formattedAnalysis + '</p>';
             } else {
                 document.getElementById('analysisCard').style.display = 'none';
             }
@@ -1258,6 +1372,8 @@
                 const content = (raw.output || raw.ground_truth || '').trim();
                 if (content) {
                     document.getElementById('inputOutputCard').style.display = 'block';
+                    document.getElementById('inputGroundTruthCard').style.display = 'none';
+                    document.getElementById('inputOutput2Card').style.display = 'none';
                     document.getElementById('inputOutputPanel2Header').textContent = hasOutputCol ? 'Output' : 'Ground truth';
                     document.getElementById('inputOutputPanel3').style.display = 'none';
                     document.getElementById('inputOutputContainer').classList.remove('three-panels');
@@ -1269,6 +1385,83 @@
                 return;
             }
 
+            const isGradings = type === 'gradings';
+            if (isGradings) {
+                const inputStr = item.input || item.model_input || '';
+                const hasOutput = output && output.trim();
+                const hasGT = groundTruth && groundTruth.trim();
+                document.getElementById('inputOutputCard').style.display = hasOutput ? 'block' : 'none';
+                document.getElementById('inputOutput2Card').style.display = 'none';
+                document.getElementById('inputGroundTruthCard').style.display = hasGT ? 'block' : 'none';
+                document.getElementById('inputOutputPanel3').style.display = 'none';
+                document.getElementById('inputOutputContainer').classList.remove('three-panels');
+                document.getElementById('inputOutputPanel2Header').textContent = 'Output';
+                if (hasOutput) {
+                    displayCode('outputDisplay', extractCode(output));
+                }
+                if (hasGT) {
+                    displayCode('inputDisplayGT', extractCode(inputStr));
+                    displayCode('gtDisplayGT', extractCode(groundTruth));
+                }
+                displayCode('gtDisplay', '');
+                return;
+            }
+
+            const isComparisons = type === 'comparisons';
+            if (isComparisons) {
+                const inputStr = item.input || item.model_input || '';
+                const hasOutput1 = output && output.trim();
+                const hasOutput2 = output2 && output2.trim();
+                const hasGT = groundTruth && groundTruth.trim();
+                document.getElementById('inputOutputCardTitle').textContent = '📝 Input & Output 1';
+                document.getElementById('inputOutputCard').style.display = hasOutput1 ? 'block' : 'none';
+                document.getElementById('inputOutputPanel3').style.display = 'none';
+                document.getElementById('inputOutputContainer').classList.remove('three-panels');
+                document.getElementById('inputOutputPanel2Header').textContent = item.model_name_1 ? item.model_name_1 : 'Output 1';
+                if (hasOutput1) {
+                    displayCode('outputDisplay', extractCode(output) || 'No output 1');
+                }
+                document.getElementById('inputOutput2Card').style.display = hasOutput2 ? 'block' : 'none';
+                if (hasOutput2) {
+                    document.getElementById('inputOutput2PanelHeader').textContent = item.model_name_2 ? item.model_name_2 : 'Output 2';
+                    displayCode('inputDisplayO2', extractCode(inputStr));
+                    displayCode('outputDisplayO2', extractCode(output2) || 'No output 2');
+                }
+                document.getElementById('inputGroundTruthCard').style.display = hasGT ? 'block' : 'none';
+                if (hasGT) {
+                    displayCode('inputDisplayGT', extractCode(inputStr));
+                    displayCode('gtDisplayGT', extractCode(groundTruth));
+                }
+                displayCode('gtDisplay', '');
+                return;
+            }
+
+            const isModelPredictions = type === 'model_predictions';
+            if (isModelPredictions) {
+                const inputStr = item.input || item.model_input || '';
+                const hasOutput = output && output.trim();
+                const hasGT = groundTruth && groundTruth.trim();
+                document.getElementById('inputOutputCardTitle').textContent = '📝 Input & Output';
+                document.getElementById('inputOutputCard').style.display = hasOutput ? 'block' : 'none';
+                document.getElementById('inputOutput2Card').style.display = 'none';
+                document.getElementById('inputGroundTruthCard').style.display = hasGT ? 'block' : 'none';
+                document.getElementById('inputOutputPanel3').style.display = 'none';
+                document.getElementById('inputOutputContainer').classList.remove('three-panels');
+                document.getElementById('inputOutputPanel2Header').textContent = 'Output';
+                if (hasOutput) {
+                    displayCode('outputDisplay', extractCode(output));
+                }
+                if (hasGT) {
+                    displayCode('inputDisplayGT', extractCode(inputStr));
+                    displayCode('gtDisplayGT', extractCode(groundTruth));
+                }
+                displayCode('gtDisplay', '');
+                return;
+            }
+
+            document.getElementById('inputGroundTruthCard').style.display = 'none';
+            document.getElementById('inputOutput2Card').style.display = 'none';
+            document.getElementById('inputOutputCardTitle').textContent = '📝 Input & Output';
             const hasOutput1 = output && output.trim();
             const hasOutput2 = output2 && output2.trim();
             const hasGT = groundTruth && groundTruth.trim();
@@ -1446,6 +1639,253 @@
             return div.innerHTML;
         }
 
+        function codeBlockHtml(code) {
+            return '<div class="code-block"><pre><code>' + escapeHtml(code || '') + '</code></pre></div>';
+        }
+
+        function getLanguageFromRow(dataIndex) {
+            const item = getNormalizedItem(data[dataIndex] || {});
+            const t = getSelectedCsvType() === 'auto' ? detectCsvType() : getSelectedCsvType();
+            if (t === 'comparisons') return (item.meta__language_1 != null && item.meta__language_1 !== '') ? String(item.meta__language_1).trim() : '';
+            if (t === 'initial_dataset') return (item.language != null && item.language !== '') ? String(item.language).trim() : '';
+            return (item.meta__language != null && item.meta__language !== '') ? String(item.meta__language).trim() : '';
+        }
+
+        function getComparisonScore(dataIndex) {
+            const item = getNormalizedItem(data[dataIndex] || {});
+            const raw = String(item.score ?? item.comparison_score ?? '').trim();
+            return parseFloat(raw, 10);
+        }
+
+        function getUniqueLanguages() {
+            const set = {};
+            for (let idx = 0; idx < data.length; idx++) {
+                const lang = getLanguageFromRow(idx);
+                if (lang) set[lang] = true;
+            }
+            return Object.keys(set).sort();
+        }
+
+        function computeFilteredIndices() {
+            const t = getSelectedCsvType() === 'auto' ? detectCsvType() : getSelectedCsvType();
+            const indices = [];
+            for (let i = 0; i < data.length; i++) {
+                if (selectedLanguages.length > 0) {
+                    const lang = getLanguageFromRow(i);
+                    if (selectedLanguages.indexOf(lang) === -1) continue;
+                }
+                if (t === 'comparisons' && selectedScoreFilter !== 'all') {
+                    const score = getComparisonScore(i);
+                    if (Number.isNaN(score)) continue;
+                    if (selectedScoreFilter === 'model1' && score > 0.25) continue;
+                    if (selectedScoreFilter === 'model2' && score < 0.75) continue;
+                    if (selectedScoreFilter === 'tie' && (score <= 0.25 || score >= 0.75)) continue;
+                }
+                indices.push(i);
+            }
+            return indices;
+        }
+
+        function getSampleBlockHtmlContent(dataIndex, displayIndex) {
+            const rawItem = data[dataIndex];
+            const item = getNormalizedItem(rawItem);
+            const type = getSelectedCsvType() === 'auto' ? detectCsvType() : getSelectedCsvType();
+            const raw = rawItem || item;
+
+            function metaItem(label, value) {
+                const v = (value !== undefined && value !== null && String(value).trim() !== '') ? escapeHtml(String(value).length > 150 ? String(value).substring(0, 150) + '...' : String(value)) : '—';
+                return '<div class="metadata-item"><span class="metadata-label">' + escapeHtml(label) + '</span><span class="metadata-value">' + v + '</span></div>';
+            }
+
+            let metaHtml = '';
+            if (type === 'initial_dataset') {
+                ['language', 'rejected', 'finish_type'].forEach(function(f) { metaHtml += metaItem(f, item[f]); });
+            } else if (type === 'comparisons') {
+                [{ key: 'model_name_1', label: 'Model 1' }, { key: 'model_name_2', label: 'Model 2' }, { key: 'input_metadata__finish_type', label: 'Finish type' }, { key: 'meta__language_1', label: 'Language' }, { key: 'meta__inference_time_1', label: 'Inference time 1' }, { key: 'meta__inference_time_2', label: 'Inference time 2' }].forEach(function(o) { metaHtml += metaItem(o.label, item[o.key]); });
+            } else if (type === 'model_predictions' || type === 'gradings') {
+                const getFT = function() {
+                    const keys = type === 'gradings' ? ['input_metadata__finish_type', 'input__metadata__finish_type', 'meta__finish_type', 'finish_type'] : ['input__metadata__finish_type', 'input_metadata__finish_type', 'meta__finish_type', 'finish_type'];
+                    for (let k = 0; k < keys.length; k++) { const v = item[keys[k]]; if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim(); }
+                    return null;
+                };
+                metaHtml += metaItem('Language', item.meta__language) + metaItem('Finish type', getFT()) + metaItem('Inference time', item.meta__inference_time);
+            } else {
+                const exclude = ['input', 'model_input', 'output', 'model_output', 'output_1', 'output_2', 'ground_truth', 'events', 'history', 'human_score', 'judge_score', 'output_score', 'ground_truth_score', 'comparison_score', 'score', 'assertions', 'judge_reasoning', 'analysis', 'example_html', 'text', 'first_order'];
+                headers.forEach(function(f) {
+                    if (exclude.indexOf(f) === -1 && item[f] !== undefined && item[f] !== null && String(item[f]).trim() !== '') {
+                        let d = String(item[f]);
+                        if (d.length > 150) d = d.substring(0, 150) + '...';
+                        metaHtml += metaItem(f, d);
+                    }
+                });
+            }
+            if (!metaHtml) metaHtml = '<div style="color: #9ca3af;">No metadata available</div>';
+
+            const input = extractCodeForDiff(item.input || item.model_input || '');
+            const output1 = extractCodeForDiff(item.output || item.model_output || item.output_1 || '');
+            const output2 = extractCodeForDiff(item.output_2 || '');
+            const gt = extractCodeForDiff(item.ground_truth || '');
+            let diffsHtml = '';
+            if (type === 'initial_dataset') {
+                const content = extractCodeForDiff((raw.output || raw.ground_truth || '').trim());
+                if (input && content) {
+                    const header = (raw.output !== undefined && raw.output !== null && String(raw.output).trim() !== '') ? 'Input → Output' : 'Input → Ground truth';
+                    diffsHtml = '<div class="card"><div class="card-header"><h2 class="card-title">🔍 Diff Comparisons</h2></div><div class="diff-container"><div class="diff-panel"><div class="diff-header">' + escapeHtml(header) + '</div><div class="diff-content">' + createUnifiedDiff(input, content, 'input', 'output') + '</div></div></div></div>';
+                }
+            } else if (input && (output1 || output2 || gt)) {
+                const hasTwo = output1 && output2;
+                const h1 = hasTwo ? (item.model_name_1 ? 'Input → ' + item.model_name_1 : 'Input → Output 1') : 'Input → Output';
+                const h2 = hasTwo ? (item.model_name_2 ? 'Input → ' + item.model_name_2 : 'Input → Output 2') : 'Input → Ground Truth';
+                const d1 = hasTwo ? createUnifiedDiff(input, output1, 'input', 'output_1') : (output1 ? createUnifiedDiff(input, output1, 'input', 'output') : '');
+                const d2 = hasTwo ? createUnifiedDiff(input, output2, 'input', 'output_2') : (gt ? createUnifiedDiff(input, gt, 'input', 'ground_truth') : '');
+                diffsHtml = '<div class="card"><div class="card-header"><h2 class="card-title">🔍 Diff Comparisons</h2></div><div class="diff-container"><div class="diff-panel"><div class="diff-header">' + escapeHtml(h1) + '</div><div class="diff-content">' + d1 + '</div></div><div class="diff-panel"><div class="diff-header">' + escapeHtml(h2) + '</div><div class="diff-content">' + d2 + '</div></div></div></div>';
+            }
+
+            let scoresHtml = '';
+            if (type !== 'gradings' && type !== 'comparisons') {
+                const scoreFields = ['human_score', 'judge_score', 'output_score', 'ground_truth_score', 'comparison_score', 'score', 'metric_name', 'is_valid'];
+                const numericFields = ['human_score', 'judge_score', 'output_score', 'ground_truth_score', 'comparison_score', 'score'];
+                let used = false, chips = '';
+                scoreFields.forEach(function(f) {
+                    if (item[f] !== undefined && item[f] !== null && String(item[f]).trim() !== '') {
+                        const label = f.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+                        const strVal = String(item[f]).trim();
+                        const isPrimary = !used && numericFields.indexOf(f) !== -1;
+                        if (isPrimary) used = true;
+                        let cls = 'score-chip'; if (isPrimary) cls += ' primary'; else if (f === 'is_valid') { const v = strVal.toLowerCase(); if (v === 'true' || v === '1' || v === 'yes') cls += ' valid'; else if (v === 'false' || v === '0' || v === 'no') cls += ' invalid'; }
+                        chips += '<span class="' + cls + '"><span class="score-chip-label">' + escapeHtml(label) + '</span> ' + escapeHtml(strVal) + '</span>';
+                    }
+                });
+                if (chips) scoresHtml = '<div class="card"><div class="card-header"><h2 class="card-title">Score</h2></div><div class="score-display">' + chips + '</div></div>';
+            }
+
+            let analysisHtml = '';
+            if (type !== 'gradings') {
+                const analysis = item.analysis || item.judge_reasoning || '';
+                let winnerLine = '';
+                if (type === 'comparisons') {
+                    const w = getComparisonsWinnerText(item);
+                    if (w !== null) winnerLine = '<p style="margin: 0 0 1em 0; font-weight: 600; font-size: 15px;">Winner: ' + w + '</p>';
+                }
+                if (winnerLine || (analysis && analysis.trim())) {
+                    const esc = escapeHtml(analysis);
+                    const fmt = esc.replace(/\n\n+/g, '</p><p style="margin: 15px 0;">').replace(/\n/g, '<br>');
+                    const aid = 'sample-' + displayIndex + '-analysisContent';
+                    analysisHtml = '<div class="card"><div class="card-header"><h2 class="card-title">🔍 Analysis</h2><button class="collapse-btn" type="button" onclick="toggleCollapse(\'' + aid + '\')">Show/Hide</button></div><div class="collapsible-content" id="' + aid + '"><div style="padding: 20px; background: var(--bg-color); border-radius: 8px; line-height: 1.8; font-size: 15px;">' + winnerLine + (analysis && analysis.trim() ? '<p style="margin: 0;">' + fmt + '</p>' : '') + '</div></div></div>';
+                }
+            }
+
+            let metricsStatsHtml = '';
+            if (type === 'gradings') {
+                const mPrefix = 'ground_truth_metrics__', sPrefix = 'stats__';
+                const mKeys = Object.keys(item).filter(function(k) { return k.indexOf(mPrefix) === 0; });
+                const sKeys = Object.keys(item).filter(function(k) { return k.indexOf(sPrefix) === 0; });
+                function tableHtml(keys, pre, label) {
+                    if (keys.length === 0) return '';
+                    let rows = '';
+                    keys.forEach(function(key) {
+                        const val = item[key];
+                        const d = (val !== undefined && val !== null && String(val).trim() !== '') ? escapeHtml(String(val)) : '—';
+                        const name = formatMetricOrStatLabel(key, mPrefix, sPrefix);
+                        rows += '<tr><th>' + escapeHtml(name) + '</th><td>' + d + '</td></tr>';
+                    });
+                    return '<div class="metrics-stat-table-wrapper"><table class="metrics-stat-table"><tbody>' + rows + '</tbody></table></div>';
+                }
+                if (mKeys.length > 0) metricsStatsHtml += '<div class="card"><div class="card-header"><h2 class="card-title">📐 Metrics</h2></div><div class="metadata-info">' + tableHtml(mKeys.filter(function(k) { return !/FIRST_HUNK/i.test(k); }), mPrefix, sPrefix) + tableHtml(mKeys.filter(function(k) { return /FIRST_HUNK/i.test(k); }), mPrefix, sPrefix) + '</div></div>';
+                if (sKeys.length > 0) metricsStatsHtml += '<div class="card"><div class="card-header"><h2 class="card-title">📈 Statistics</h2></div><div class="metadata-info">' + tableHtml(sKeys.filter(function(k) { return /GOLDEN/i.test(k); }), mPrefix, sPrefix) + tableHtml(sKeys.filter(function(k) { return /PREDICTION/i.test(k); }), mPrefix, sPrefix) + '</div></div>';
+            }
+
+            let historyHtml = '';
+            const history = item.events || item.history || item['User edits'] || '';
+            if (history && history.trim()) {
+                const editRegex = /User edited "([^"]+)":\s*```diff\n([\s\S]*?)```/g;
+                const allEdits = [];
+                let match;
+                while ((match = editRegex.exec(history)) !== null) allEdits.push({ fileName: match[1], diff: match[2] });
+                if (allEdits.length > 0) {
+                    const editsToShow = historyViewMode === 'last5' ? allEdits.slice(-5) : allEdits;
+                    let h = '';
+                    editsToShow.forEach(function(edit, idx) {
+                        const file = edit.fileName.split('/').pop() || edit.fileName;
+                        const editId = 'sample-' + displayIndex + '-edit-' + idx;
+                        h += '<div class="edit-item"><div class="edit-header" onclick="toggleEdit(\'' + editId + '\')"><div class="edit-title"><span class="edit-number">#' + (idx + 1) + '</span><span>📄 ' + escapeHtml(file) + '</span></div><span class="edit-toggle" id="' + editId + '-toggle">▼</span></div><div class="edit-content" id="' + editId + '"><div class="edit-body"><div class="edit-file">📁 ' + escapeHtml(edit.fileName) + '</div>' + formatDiffBlock(edit.diff) + '</div></div></div>';
+                    });
+                    const hid = 'sample-' + displayIndex + '-historyContent';
+                    historyHtml = '<div class="card"><div class="card-header"><h2 class="card-title">📜 Edit History</h2><button class="collapse-btn" type="button" onclick="toggleCollapse(\'' + hid + '\')">Show/Hide</button></div><div class="collapsible-content collapsed" id="' + hid + '">' + h + '</div></div>';
+                }
+            }
+
+            const out = item.output || item.model_output || item.output_1 || '';
+            const out2 = item.output_2 || '';
+            const gTruth = item.ground_truth || '';
+            let ioHtml = '';
+            function panel(h, body) { return '<div class="diff-panel"><div class="diff-header">' + escapeHtml(h) + '</div><div class="diff-content">' + body + '</div></div>'; }
+            const inputCode = extractCode(item.input || item.model_input || '');
+            function ioCard(title, contentId, body) {
+                return '<div class="card"><div class="card-header"><h2 class="card-title">' + title + '</h2><button class="collapse-btn" type="button" onclick="toggleCollapse(\'' + contentId + '\')">Show/Hide</button></div><div class="collapsible-content collapsed" id="' + contentId + '"><div class="diff-container">' + body + '</div></div></div>';
+            }
+            if (type === 'initial_dataset') {
+                const content = (raw.output || raw.ground_truth || '').trim();
+                if (content) ioHtml = ioCard('📝 Input & Output', 'sample-' + displayIndex + '-inputOutputContent', panel('Input', codeBlockHtml(inputCode)) + panel((raw.output !== undefined && raw.output !== null && String(raw.output).trim() !== '') ? 'Output' : 'Ground truth', codeBlockHtml(extractCode(content))));
+            } else if (type === 'gradings') {
+                if (out && out.trim()) ioHtml += ioCard('📝 Input & Output', 'sample-' + displayIndex + '-inputOutputContent', panel('Input', codeBlockHtml(inputCode)) + panel('Output', codeBlockHtml(extractCode(out))));
+                if (gTruth && gTruth.trim()) ioHtml += ioCard('📝 Input & Ground truth', 'sample-' + displayIndex + '-inputGroundTruthContent', panel('Input', codeBlockHtml(inputCode)) + panel('Ground truth', codeBlockHtml(extractCode(gTruth))));
+            } else if (type === 'comparisons') {
+                if (out && out.trim()) ioHtml += ioCard('📝 Input & Output 1', 'sample-' + displayIndex + '-inputOutputContent', panel('Input', codeBlockHtml(inputCode)) + panel(item.model_name_1 || 'Output 1', codeBlockHtml(extractCode(out))));
+                if (out2 && out2.trim()) ioHtml += ioCard('📝 Input & Output 2', 'sample-' + displayIndex + '-inputOutput2Content', panel('Input', codeBlockHtml(inputCode)) + panel(item.model_name_2 || 'Output 2', codeBlockHtml(extractCode(out2))));
+                if (gTruth && gTruth.trim()) ioHtml += ioCard('📝 Input & Ground truth', 'sample-' + displayIndex + '-inputGroundTruthContent', panel('Input', codeBlockHtml(inputCode)) + panel('Ground truth', codeBlockHtml(extractCode(gTruth))));
+            } else {
+                if (out && out.trim()) ioHtml += ioCard('📝 Input & Output', 'sample-' + displayIndex + '-inputOutputContent', panel('Input', codeBlockHtml(inputCode)) + panel('Output', codeBlockHtml(extractCode(out))));
+                if (gTruth && gTruth.trim()) ioHtml += ioCard('📝 Input & Ground truth', 'sample-' + displayIndex + '-inputGroundTruthContent', panel('Input', codeBlockHtml(inputCode)) + panel('Ground truth', codeBlockHtml(extractCode(gTruth))));
+            }
+
+            return '<div class="sample-caption">Example #' + (displayIndex + 1) + '</div>' +
+                (diffsHtml ? diffsHtml : '') +
+                '<div class="card"><div class="card-header"><h2 class="card-title">📊 Metadata</h2></div><div class="metadata-info">' + metaHtml + '</div></div>' +
+                metricsStatsHtml +
+                analysisHtml +
+                scoresHtml +
+                historyHtml +
+                ioHtml;
+        }
+
+        function getSampleBlockHtml(dataIndex) {
+            return '<section class="sample-block" id="sample-' + dataIndex + '" data-index="' + dataIndex + '">' + getSampleBlockHtmlContent(dataIndex, dataIndex) + '</section>';
+        }
+
+        function renderBatch(fromIndex, count) {
+            const list = document.getElementById('samplesList');
+            if (!list) return;
+            const total = filteredIndices.length;
+            const to = Math.min(fromIndex + count, total);
+            let html = '';
+            for (let j = fromIndex; j < to; j++) {
+                const dataIdx = filteredIndices[j];
+                html += '<section class="sample-block" id="sample-' + j + '" data-index="' + j + '">' + getSampleBlockHtmlContent(dataIdx, j) + '</section>';
+            }
+            list.insertAdjacentHTML('beforeend', html);
+            renderedCount = to;
+            updateScrollCounterObserver();
+        }
+
+        function updateCounterAndButtons() {
+            const total = filteredIndices.length;
+            document.getElementById('counter').textContent = (currentIndex + 1) + ' / ' + total;
+            document.getElementById('prevBtn').disabled = currentIndex === 0;
+            document.getElementById('nextBtn').disabled = currentIndex >= total - 1;
+        }
+
+        function loadMoreOnScroll() {
+            if (renderedCount >= filteredIndices.length) {
+                window.removeEventListener('scroll', loadMoreOnScroll);
+                return;
+            }
+            const doc = document.documentElement;
+            const nearBottom = (window.pageYOffset || doc.scrollTop) + doc.clientHeight >= doc.scrollHeight - 400;
+            if (nearBottom) renderBatch(renderedCount, BATCH_SIZE);
+            if (renderedCount >= filteredIndices.length) window.removeEventListener('scroll', loadMoreOnScroll);
+        }
+
         function toggleCollapse(id) {
             const element = document.getElementById(id);
             element.classList.toggle('collapsed');
@@ -1476,6 +1916,25 @@
             loading.style.display = 'block';
         }
 
+        var scrollCounterObserver = null;
+        function updateScrollCounterObserver() {
+            if (scrollCounterObserver) scrollCounterObserver.disconnect();
+            var list = document.getElementById('samplesList');
+            if (!list || list.children.length === 0) return;
+            scrollCounterObserver = new IntersectionObserver(function(entries) {
+                entries.forEach(function(e) {
+                    if (e.isIntersecting) {
+                        var idx = parseInt(e.target.getAttribute('data-index'), 10);
+                        if (!isNaN(idx) && idx !== currentIndex) {
+                            currentIndex = idx;
+                            updateCounterAndButtons();
+                        }
+                    }
+                });
+            }, { root: null, rootMargin: '-30% 0px -30% 0px', threshold: 0 });
+            for (var i = 0; i < list.children.length; i++) scrollCounterObserver.observe(list.children[i]);
+        }
+
         // Keyboard navigation
         document.addEventListener('keydown', function(e) {
             if (e.key === 'ArrowLeft') {
@@ -1484,6 +1943,7 @@
                 navigate(1);
             }
         });
+
     </script>
 </body>
 </html>
